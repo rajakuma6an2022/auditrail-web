@@ -1,6 +1,8 @@
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 
-// Day 1: always go to login. Day 2 will redirect to /events when signed in.
-export default function Home() {
-  redirect("/login");
+// Signed-in users (session cookie present) go to the explorer, everyone else to login.
+export default async function Home() {
+  const hasSession = (await cookies()).has("auditrail_session");
+  redirect(hasSession ? "/events" : "/login");
 }
