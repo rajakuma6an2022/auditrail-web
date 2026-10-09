@@ -8,7 +8,8 @@ import { fetchMe, type User } from "@/lib/auth-api";
 
 type State = { status: "loading" } | { status: "ready"; user: User } | { status: "error" };
 
-export function EventsShell() {
+// Wraps every signed-in page: verifies the session (/auth/me), shows the header, redirects to /login on 401.
+export function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const [state, setState] = useState<State>({ status: "loading" });
 
@@ -46,12 +47,7 @@ export function EventsShell() {
   return (
     <div className="min-h-dvh">
       <AppHeader user={state.user} />
-      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6">
-        <h1 className="text-[22px] font-semibold tracking-tight">Events</h1>
-        <p className="mt-1 text-sm text-fg-secondary">
-          Signed in to tenant <span className="font-mono">{state.user.tenantId}</span>. The event explorer arrives on Day 3.
-        </p>
-      </main>
+      <main className="mx-auto max-w-7xl px-4 py-6 sm:px-6 sm:py-8">{children}</main>
     </div>
   );
 }
