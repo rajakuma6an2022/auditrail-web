@@ -5,6 +5,7 @@ import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requestMagicLink } from "@/lib/auth-api";
+import { ApiError } from "@/lib/api";
 
 const emailSchema = z.email({ error: "Enter a valid email address." });
 
@@ -21,6 +22,7 @@ export function LoginForm() {
   const [email, setEmail] = useState("");
   const [fieldError, setFieldError] = useState<string | null>(null);
   const [status, setStatus] = useState<Status>("idle");
+  const [errorMessage, setErrorMessage] = useState("We couldn't send the sign-in link. Please try again in a moment.");
   const inputRef = useRef<HTMLInputElement>(null);
   const sentHeadingRef = useRef<HTMLHeadingElement>(null);
 
@@ -40,7 +42,12 @@ export function LoginForm() {
     try {
       await requestMagicLink(email.trim());
       setStatus("sent");
-    } catch {
+    } catch (e) {
+      setErrorMessage(
+        e instanceof ApiError && e.status === 429
+          ? "Too many attempts. Please wait a few minutes and try again."
+          : "We couldn't send the sign-in link. Please try again in a moment.",
+      );
       setStatus("error");
     }
   }
@@ -58,7 +65,7 @@ export function LoginForm() {
             Check your email
           </h1>
           <p className="text-sm text-fg-secondary">
-            We sent a sign-in link to <span className="font-mono text-fg">{email.trim()}</span>. It expires in 15 minutes.
+            If <span className="font-mono text-fg">{email.trim()}</span> is registered, a sign-in link is on its way. It expires in 15 minutes.
           </p>
         </div>
         <Button
@@ -87,7 +94,7 @@ export function LoginForm() {
             <svg className="mt-0.5 size-4 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
               <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm-.75 3.5h1.5v4h-1.5V5Zm0 5.25h1.5v1.5h-1.5v-1.5Z" />
             </svg>
-            <span>We couldn&apos;t send the sign-in link. Please try again in a moment.</span>
+            <span>{errorMessage}</span>
           </div>
         )}
 

@@ -1,8 +1,25 @@
-// DAY 1 MOCK. Day 2 replaces this file with real calls to the Express API.
-// Behaviour: waits 800ms, then succeeds. Emails starting with "fail" simulate a server error.
-export async function requestMagicLink(email: string): Promise<void> {
-  await new Promise((resolve) => setTimeout(resolve, 800));
-  if (email.toLowerCase().startsWith("fail")) {
-    throw new Error("Could not send the sign-in link.");
-  }
+import { api } from "./api";
+
+export type User = { id: string; email: string; name: string; tenantId: string };
+
+export function requestMagicLink(email: string) {
+  return api<{ message: string }>("/api/v1/auth/magic-link", {
+    method: "POST",
+    body: JSON.stringify({ email }),
+  });
+}
+
+export function verifyMagicLink(token: string) {
+  return api<{ user: User }>("/api/v1/auth/verify", {
+    method: "POST",
+    body: JSON.stringify({ token }),
+  });
+}
+
+export function fetchMe() {
+  return api<{ user: User }>("/api/v1/auth/me");
+}
+
+export function logout() {
+  return api<void>("/api/v1/auth/logout", { method: "POST" });
 }

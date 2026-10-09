@@ -1,8 +1,15 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { LoginForm, validateEmail } from "@/app/login/login-form";
 import { SeverityBadge } from "@/components/ui/severity-badge";
+
+vi.mock("@/lib/auth-api", () => ({
+  requestMagicLink: vi.fn(async (email: string) => {
+    if (email.startsWith("fail")) throw new Error("boom");
+    return { message: "ok" };
+  }),
+}));
 
 describe("validateEmail", () => {
   it("rejects empty", () => expect(validateEmail("  ")).toBe("Enter your email address."));
