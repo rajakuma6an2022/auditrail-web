@@ -56,16 +56,30 @@ export function LoginForm() {
     return (
       <div className="flex flex-col gap-4" role="status">
         <div className="flex size-9 items-center justify-center rounded-md bg-success-soft text-success">
-          <svg className="size-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <svg
+            className="size-5"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden="true"
+          >
             <path d="M20 6 9 17l-5-5" />
           </svg>
         </div>
         <div className="flex flex-col gap-1.5">
-          <h1 ref={sentHeadingRef} tabIndex={-1} className="text-[22px] font-semibold leading-tight tracking-tight outline-none">
+          <h1
+            ref={sentHeadingRef}
+            tabIndex={-1}
+            className="text-[22px] font-semibold leading-tight tracking-tight outline-none"
+          >
             Check your email
           </h1>
           <p className="text-sm text-fg-secondary">
-            If <span className="font-mono text-fg">{email.trim()}</span> is registered, a sign-in link is on its way. It expires in 15 minutes.
+            If <span className="font-mono text-fg">{email.trim()}</span> is registered, a sign-in link is on its way. It
+            expires in 15 minutes.
           </p>
         </div>
         <Button
@@ -90,7 +104,10 @@ export function LoginForm() {
 
       <form onSubmit={onSubmit} noValidate className="flex flex-col gap-4">
         {status === "error" && (
-          <div role="alert" className="flex items-start gap-2 rounded-md border border-error/30 bg-error-soft p-3 text-sm text-error">
+          <div
+            role="alert"
+            className="flex items-start gap-2 rounded-md border border-error/30 bg-error-soft p-3 text-sm text-error"
+          >
             <svg className="mt-0.5 size-4 shrink-0" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
               <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13Zm-.75 3.5h1.5v4h-1.5V5Zm0 5.25h1.5v1.5h-1.5v-1.5Z" />
             </svg>

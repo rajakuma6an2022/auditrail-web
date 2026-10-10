@@ -12,7 +12,9 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("next/link", () => ({
   default: ({ href, children, ...rest }: { href: string; children: React.ReactNode }) => (
-    <a href={href} {...rest}>{children}</a>
+    <a href={href} {...rest}>
+      {children}
+    </a>
   ),
 }));
 
@@ -41,7 +43,11 @@ const row = (n: number) => ({
 beforeEach(() => {
   vi.clearAllMocks();
   search = "";
-  getFacets.mockResolvedValue({ levels: ["INFO", "WARN", "ERROR"], services: ["orders"], actions: ["order_cancelled"] });
+  getFacets.mockResolvedValue({
+    levels: ["INFO", "WARN", "ERROR"],
+    services: ["orders"],
+    actions: ["order_cancelled"],
+  });
 });
 
 describe("EventExplorer", () => {

@@ -3,7 +3,11 @@ import { ErrorScreen, linkButtonPrimaryClass } from "@/components/ui/error-scree
 
 export default function NotFound() {
   return (
-    <ErrorScreen code="404" title="Page not found" description="The page you're looking for doesn't exist or has been moved.">
+    <ErrorScreen
+      code="404"
+      title="Page not found"
+      description="The page you're looking for doesn't exist or has been moved."
+    >
       <Link href="/events" className={linkButtonPrimaryClass}>
         Go to Events
       </Link>

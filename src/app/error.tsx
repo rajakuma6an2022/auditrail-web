@@ -11,7 +11,11 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
   }, [error]);
 
   return (
-    <ErrorScreen code="500" title="Something went wrong" description="An unexpected error occurred. You can try again, or go back to Events.">
+    <ErrorScreen
+      code="500"
+      title="Something went wrong"
+      description="An unexpected error occurred. You can try again, or go back to Events."
+    >
       <Button onClick={reset}>Try again</Button>
       <Link href="/events" className={linkButtonClass}>
         Go to Events

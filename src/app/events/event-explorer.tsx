@@ -92,7 +92,8 @@ export function EventExplorer() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       const t = e.target as HTMLElement | null;
-      const typing = t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+      const typing =
+        t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
       if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         searchRef.current?.focus();
@@ -141,7 +142,9 @@ export function EventExplorer() {
     <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-[22px] font-semibold tracking-tight">Events</h1>
-        <p className="mt-1 text-sm text-fg-secondary">Search and filter application events, then open one to inspect it.</p>
+        <p className="mt-1 text-sm text-fg-secondary">
+          Search and filter application events, then open one to inspect it.
+        </p>
       </div>
 
       <div key={searchResetKey} className="flex flex-col gap-3 lg:flex-row lg:items-center">
@@ -206,7 +209,11 @@ export function EventExplorer() {
         ) : !loading && page && page.rows.length === 0 ? (
           <StatePanel
             title={active ? "No events match your filters" : "No events yet"}
-            description={active ? "Try a different search term or remove some filters." : "Events will appear here once your application starts sending them."}
+            description={
+              active
+                ? "Try a different search term or remove some filters."
+                : "Events will appear here once your application starts sending them."
+            }
             action={
               active ? (
                 <Button variant="secondary" onClick={clearFilters}>
@@ -226,7 +233,11 @@ export function EventExplorer() {
               {page.nextCursor ? "" : " · end of results"}
             </span>
             <div className="flex items-center gap-3">
-              {moreError && <span role="alert" className="text-error">Couldn&apos;t load more.</span>}
+              {moreError && (
+                <span role="alert" className="text-error">
+                  Couldn&apos;t load more.
+                </span>
+              )}
               {page.nextCursor && (
                 <Button variant="secondary" onClick={loadMore} loading={loadingMore} loadingText="Loading…">
                   Load more

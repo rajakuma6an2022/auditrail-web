@@ -25,11 +25,7 @@ export async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
   const body = await res.json().catch(() => null);
   if (!res.ok) {
-    throw new ApiError(
-      res.status,
-      body?.error?.code ?? "UNKNOWN",
-      body?.error?.message ?? "Something went wrong.",
-    );
+    throw new ApiError(res.status, body?.error?.code ?? "UNKNOWN", body?.error?.message ?? "Something went wrong.");
   }
   return body as T;
 }

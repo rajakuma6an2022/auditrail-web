@@ -40,7 +40,13 @@ export function EventDetail({ id }: { id: string }) {
       .catch((e: unknown) => {
         if (isAborted(e)) return;
         const status = statusOf(e);
-        done(status === 404 ? { status: "not-found" } : status === 401 || status === 403 ? { status: "unauthorized" } : { status: "error" });
+        done(
+          status === 404
+            ? { status: "not-found" }
+            : status === 401 || status === 403
+              ? { status: "unauthorized" }
+              : { status: "error" },
+        );
       });
     return () => ctrl.abort();
   }, [id, tick]);
@@ -60,7 +66,11 @@ export function EventDetail({ id }: { id: string }) {
       </div>
 
       {state.status === "loading" && (
-        <div role="status" aria-label="Loading event" className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5">
+        <div
+          role="status"
+          aria-label="Loading event"
+          className="flex flex-col gap-4 rounded-lg border border-border bg-surface p-5"
+        >
           <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 6 }, (_, i) => (
               <div key={i} className="flex flex-col gap-2">
@@ -80,7 +90,10 @@ export function EventDetail({ id }: { id: string }) {
             title="Event not found"
             description="This event doesn't exist, or you don't have access to it. Check the event ID and try again."
             action={
-              <Link href="/events" className="inline-flex h-9 items-center rounded-md border border-border px-3.5 text-sm font-medium hover:bg-surface-muted">
+              <Link
+                href="/events"
+                className="inline-flex h-9 items-center rounded-md border border-border px-3.5 text-sm font-medium hover:bg-surface-muted"
+              >
                 Back to Events
               </Link>
             }
@@ -95,7 +108,10 @@ export function EventDetail({ id }: { id: string }) {
             title="You can't view this event"
             description="Your session has expired or you don't have permission. Sign in again to continue."
             action={
-              <Link href="/login" className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-fg hover:bg-accent-hover">
+              <Link
+                href="/login"
+                className="inline-flex h-9 items-center rounded-md bg-accent px-3.5 text-sm font-medium text-accent-fg hover:bg-accent-hover"
+              >
                 Sign in
               </Link>
             }

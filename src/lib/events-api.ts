@@ -45,7 +45,9 @@ export function buildListQuery(f: Filters, cursor?: string, now: number = Date.n
 }
 
 export function listEvents(f: Filters, cursor?: string, signal?: AbortSignal) {
-  return api<{ data: AuditEvent[]; nextCursor: string | null }>(`/api/v1/events?${buildListQuery(f, cursor)}`, { signal });
+  return api<{ data: AuditEvent[]; nextCursor: string | null }>(`/api/v1/events?${buildListQuery(f, cursor)}`, {
+    signal,
+  });
 }
 
 export function getFacets(signal?: AbortSignal) {

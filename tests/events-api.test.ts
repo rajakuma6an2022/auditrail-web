@@ -8,7 +8,10 @@ describe("buildListQuery", () => {
 
   it("maps filters, trims search and adds the cursor", () => {
     const qs = new URLSearchParams(
-      buildListQuery({ q: "  user_4821 ", level: "ERROR", service: "payments", action: "payment_failed", range: "" }, "abc"),
+      buildListQuery(
+        { q: "  user_4821 ", level: "ERROR", service: "payments", action: "payment_failed", range: "" },
+        "abc",
+      ),
     );
     expect(qs.get("q")).toBe("user_4821");
     expect(qs.get("level")).toBe("ERROR");
