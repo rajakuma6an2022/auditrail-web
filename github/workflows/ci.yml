@@ -20,3 +20,70 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: auditrail_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/auditrail_e2e
+      DIRECT_URL: postgresql://postgres:postgres@localhost:5432/auditrail_e2e
+    steps:
+      - uses: actions/checkout@v4
+      # The API lives in a separate repo. If it is private, add a read-only PAT as the API_REPO_TOKEN secret.
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/auditrail-api
+          path: api
+          token: ${{ secrets.API_REPO_TOKEN || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            api/package-lock.json
+      - name: API - install, migrate, seed, start
+        working-directory: api
+        env:
+          NODE_ENV: test
+          PORT: 4000
+          JWT_SECRET: e2e-secret-e2e-secret-e2e-secret-123456
+          APP_URL: http://localhost:3000
+          CORS_ORIGIN: http://localhost:3000
+        run: |
+          npm ci
+          npx prisma generate
+          npx prisma migrate deploy
+          npm run e2e:seed
+          npm run build
+          nohup node dist/index.js > ../api.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break; sleep 1; done
+          curl -sf http://localhost:4000/health/db
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run build
+        env:
+          API_URL: http://localhost:4000
+      - run: npx playwright test
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-debug
+          path: |
+            playwright-report
+            test-results
+            api.log
+          retention-days: 7
