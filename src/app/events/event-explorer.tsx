@@ -1,32 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { StatePanel } from "@/components/ui/state-panel";
-import {
-  RANGES,
-  getFacets,
-  hasActiveFilters,
-  isAborted,
-  listEvents,
-  statusOf,
-  type AuditEvent,
-  type Facets,
-  type Filters,
-} from "@/lib/events-api";
+import { RANGES, getFacets, hasActiveFilters, listEvents, statusOf, type Filters } from "@/lib/events-api";
 import { EventTable } from "./event-table";
-
-type Page = { key: string; rows: AuditEvent[]; nextCursor: string | null; error: string | null };
 
 export function EventExplorer() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
 
-  // Filters live in the URL so a filtered view can be bookmarked or pasted to a teammate.
   const filters: Filters = {
     q: params.get("q") ?? "",
     level: params.get("level") ?? "",
@@ -34,71 +22,62 @@ export function EventExplorer() {
     action: params.get("action") ?? "",
     range: params.get("range") ?? "",
   };
-  const filterKey = params.toString();
 
   const [searchText, setSearchText] = useState(filters.q);
   const [searchResetKey, setSearchResetKey] = useState(0);
-  const [facets, setFacets] = useState<Facets | null>(null);
-  const [page, setPage] = useState<Page | null>(null);
   const [reloadTick, setReloadTick] = useState(0);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [moreError, setMoreError] = useState(false);
 
   const searchRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const facetsQuery = useQuery({
+    queryKey: ["event-facets"],
+    queryFn: ({ signal }) => getFacets(signal),
+  });
+
+  const eventsQuery = useInfiniteQuery({
+    queryKey: ["events", filters, reloadTick],
+    initialPageParam: undefined as string | undefined,
+    queryFn: ({ pageParam, signal }) => listEvents(filters, pageParam, signal),
+    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
+  });
+
+  useEffect(() => {
+    if (statusOf(eventsQuery.error) === 401) {
+      router.replace("/login");
+    }
+  }, [eventsQuery.error, router]);
 
   const setParam = useCallback(
     (name: keyof Filters, value: string) => {
       const next = new URLSearchParams(window.location.search);
       if (value) next.set(name, value);
       else next.delete(name);
+
       const qs = next.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+      router.replace(qs ? `${pathname}?${qs}` : pathname, {
+        scroll: false,
+      });
     },
     [router, pathname],
   );
 
-  // facets (dropdown options)
-  useEffect(() => {
-    const ctrl = new AbortController();
-    getFacets(ctrl.signal)
-      .then(setFacets)
-      .catch(() => {
-        /* dropdowns simply stay empty; the list still works */
-      });
-    return () => ctrl.abort();
-  }, []);
-
-  // first page whenever filters change (or Retry is pressed)
-  const requestKey = `${filterKey}#${reloadTick}`;
-  useEffect(() => {
-    const ctrl = new AbortController();
-    listEvents(filters, undefined, ctrl.signal)
-      .then((r) => setPage({ key: requestKey, rows: r.data, nextCursor: r.nextCursor, error: null }))
-      .catch((e: unknown) => {
-        if (isAborted(e)) return;
-        if (statusOf(e) === 401) {
-          router.replace("/login");
-          return;
-        }
-        setPage({ key: requestKey, rows: [], nextCursor: null, error: "Couldn't load events." });
-      });
-    return () => ctrl.abort();
-    // `filters` is derived from filterKey, so filterKey is the real dependency
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterKey, reloadTick, router]);
-
-  // "/" focuses search (unless already typing somewhere)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const t = e.target as HTMLElement | null;
+      const target = e.target as HTMLElement | null;
       const typing =
-        t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT" || t.isContentEditable);
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.tagName === "SELECT" ||
+          target.isContentEditable);
+
       if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         searchRef.current?.focus();
       }
     }
+
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -115,28 +94,18 @@ export function EventExplorer() {
   function clearFilters() {
     clearTimeout(debounce.current);
     setSearchText("");
-    setSearchResetKey((k) => k + 1);
+    setSearchResetKey((key) => key + 1);
     router.replace(pathname, { scroll: false });
   }
 
-  async function loadMore() {
-    if (!page?.nextCursor) return;
-    setLoadingMore(true);
-    setMoreError(false);
-    try {
-      const r = await listEvents(filters, page.nextCursor);
-      setPage((p) => (p ? { ...p, rows: [...p.rows, ...r.data], nextCursor: r.nextCursor } : p));
-    } catch (e) {
-      if (statusOf(e) === 401) router.replace("/login");
-      else setMoreError(true);
-    } finally {
-      setLoadingMore(false);
-    }
-  }
-
-  const loading = page === null || page.key !== requestKey;
+  const pages = eventsQuery.data?.pages ?? [];
+  const rows = pages.flatMap((page) => page.data);
+  const nextCursor = pages.at(-1)?.nextCursor ?? null;
+  const loading = eventsQuery.isPending;
   const active = hasActiveFilters(filters);
-  const toOptions = (values: string[] = []) => values.map((v) => ({ value: v, label: v }));
+  const facets = facetsQuery.data;
+
+  const toOptions = (values: string[] = []) => values.map((value) => ({ value, label: value }));
 
   return (
     <div className="flex flex-col gap-5">
@@ -157,6 +126,7 @@ export function EventExplorer() {
             onChange={onSearchChange}
           />
         </div>
+
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
           <Select
             label="Level"
@@ -184,9 +154,13 @@ export function EventExplorer() {
             placeholder="All time"
             value={filters.range}
             onChange={(e) => setParam("range", e.target.value)}
-            options={Object.entries(RANGES).map(([value, r]) => ({ value, label: r.label }))}
+            options={Object.entries(RANGES).map(([value, range]) => ({
+              value,
+              label: range.label,
+            }))}
           />
         </div>
+
         {active && (
           <Button variant="ghost" onClick={clearFilters} className="self-start lg:self-auto">
             Clear filters
@@ -195,18 +169,18 @@ export function EventExplorer() {
       </div>
 
       <section aria-label="Event results" className="overflow-hidden rounded-lg border border-border bg-surface">
-        {page?.error && !loading ? (
+        {eventsQuery.isError && !eventsQuery.data ? (
           <StatePanel
             tone="error"
             title="Couldn't load events"
             description="Something went wrong while fetching events. Check your connection and try again."
             action={
-              <Button variant="secondary" onClick={() => setReloadTick((t) => t + 1)}>
+              <Button variant="secondary" onClick={() => setReloadTick((tick) => tick + 1)}>
                 Retry
               </Button>
             }
           />
-        ) : !loading && page && page.rows.length === 0 ? (
+        ) : !loading && rows.length === 0 && eventsQuery.data ? (
           <StatePanel
             title={active ? "No events match your filters" : "No events yet"}
             description={
@@ -223,23 +197,30 @@ export function EventExplorer() {
             }
           />
         ) : (
-          <EventTable events={page?.rows ?? []} loading={loading} />
+          <EventTable events={rows} loading={loading} />
         )}
 
-        {!loading && page && page.rows.length > 0 && (
+        {!loading && eventsQuery.data && rows.length > 0 && (
           <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5 text-xs text-fg-secondary">
             <span aria-live="polite">
-              Showing {page.rows.length} event{page.rows.length === 1 ? "" : "s"}
-              {page.nextCursor ? "" : " · end of results"}
+              Showing {rows.length} event{rows.length === 1 ? "" : "s"}
+              {nextCursor ? "" : " · end of results"}
             </span>
+
             <div className="flex items-center gap-3">
-              {moreError && (
+              {eventsQuery.isFetchNextPageError && (
                 <span role="alert" className="text-error">
                   Couldn&apos;t load more.
                 </span>
               )}
-              {page.nextCursor && (
-                <Button variant="secondary" onClick={loadMore} loading={loadingMore} loadingText="Loading…">
+
+              {nextCursor && (
+                <Button
+                  variant="secondary"
+                  onClick={() => void eventsQuery.fetchNextPage()}
+                  loading={eventsQuery.isFetchingNextPage}
+                  loadingText="Loading…"
+                >
                   Load more
                 </Button>
               )}

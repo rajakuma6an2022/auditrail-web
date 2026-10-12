@@ -2,6 +2,8 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 
 const replace = vi.fn();
 const router = { replace, push: vi.fn(), back: vi.fn() }; // stable identity, like the real Next router
@@ -60,6 +62,20 @@ const event = {
   metadata: { a: 1 },
 };
 
+function renderExplorer() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+    },
+  });
+
+  return render(<EventExplorer />, {
+    wrapper: ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    ),
+  });
+}
+
 describe("axe (jsdom)", () => {
   it("login: default, invalid and sent states", async () => {
     const user = userEvent.setup();
@@ -83,7 +99,7 @@ describe("axe (jsdom)", () => {
       actions: ["payment_failed"],
     });
     listEvents.mockResolvedValue({ data: [event], nextCursor: "c" });
-    const { container } = render(<EventExplorer />);
+    const { container } = renderExplorer();
     await screen.findByText("Payment failed");
     expect(await violations(container)).toEqual([]);
     for (const name of ["Search events", "Level", "Service", "Action", "Time range"]) {
@@ -95,7 +111,7 @@ describe("axe (jsdom)", () => {
   it("explorer: error state", async () => {
     getFacets.mockResolvedValue({ levels: [], services: [], actions: [] });
     listEvents.mockRejectedValue(new Error("down"));
-    const { container } = render(<EventExplorer />);
+    const { container } = renderExplorer();
     await screen.findByRole("button", { name: "Retry" });
     expect(await violations(container)).toEqual([]);
   });
