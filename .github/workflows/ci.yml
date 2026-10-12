@@ -10,10 +10,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
+
       - run: npm ci
       - run: npm run format:check
       - run: npm run typecheck
@@ -23,6 +25,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+
     services:
       postgres:
         image: postgres:16
@@ -37,17 +40,22 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/auditrail_e2e
       DIRECT_URL: postgresql://postgres:postgres@localhost:5432/auditrail_e2e
+
     steps:
       - uses: actions/checkout@v4
-      # The API lives in a separate repo. If it is private, add a read-only PAT as the API_REPO_TOKEN secret.
+
+      # API is maintained in a separate repository.
+      # If it is private, configure API_REPO_TOKEN in this repository's secrets.
       - uses: actions/checkout@v4
         with:
           repository: ${{ github.repository_owner }}/auditrail-api
           path: api
           token: ${{ secrets.API_REPO_TOKEN || github.token }}
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -55,7 +63,8 @@ jobs:
           cache-dependency-path: |
             package-lock.json
             api/package-lock.json
-      - name: API - install, migrate, seed, start
+
+      - name: API - install, migrate, seed, build and start
         working-directory: api
         env:
           NODE_ENV: test
@@ -64,21 +73,52 @@ jobs:
           APP_URL: http://localhost:3000
           CORS_ORIGIN: http://localhost:3000
         run: |
+          set -e
+
           npm ci
+          npx prisma validate
           npx prisma generate
           npx prisma migrate deploy
           npm run e2e:seed
           npm run build
+
           nohup node dist/index.js > ../api.log 2>&1 &
-          for i in $(seq 1 30); do curl -sf http://localhost:4000/health && break; sleep 1; done
-          curl -sf http://localhost:4000/health/db
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run build
+
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:4000/health; then
+              break
+            fi
+            sleep 1
+          done
+
+          if ! curl -sf http://localhost:4000/health; then
+            echo "API failed to start. API log:"
+            cat ../api.log
+            exit 1
+          fi
+
+          if ! curl -sf http://localhost:4000/health/db; then
+            echo "API database health check failed. API log:"
+            cat ../api.log
+            exit 1
+          fi
+
+      - name: Frontend - install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Build frontend
+        run: npm run build
         env:
           API_URL: http://localhost:4000
-      - run: npx playwright test
-      - uses: actions/upload-artifact@v4
+
+      - name: Run Playwright E2E tests
+        run: npx playwright test
+
+      - name: Upload E2E debug artifacts
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: e2e-debug
