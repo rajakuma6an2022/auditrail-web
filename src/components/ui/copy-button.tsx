@@ -21,7 +21,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
   return (
     <>
       <Button variant="secondary" onClick={copy}>
-        {state === "copied" ? "Copied" : label}
+        {state === "copied" ? "Copied" : state === "failed" ? "Copy failed" : label}
       </Button>
       <span className="sr-only" role="status" aria-live="polite">
         {state === "copied" ? "Copied to clipboard" : state === "failed" ? "Copy failed" : ""}
