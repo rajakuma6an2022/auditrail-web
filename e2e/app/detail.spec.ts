@@ -17,7 +17,7 @@ test("shows what happened, when, where, who and the metadata", async ({ page }) 
 test("Copy Event ID copies the ID and confirms", async ({ page }) => {
   await page.goto("/events/evt_9f81a2");
   await page.getByRole("button", { name: "Copy Event ID" }).click();
-  await expect(page.getByRole("button", { name: "Copied" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Notifications" })).toContainText("Event ID copied");
   expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("evt_9f81a2");
 });
 

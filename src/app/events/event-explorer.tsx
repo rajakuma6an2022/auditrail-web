@@ -1,83 +1,66 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { SearchInput } from "@/components/ui/search-input";
 import { Select } from "@/components/ui/select";
 import { StatePanel } from "@/components/ui/state-panel";
-import { RANGES, getFacets, hasActiveFilters, listEvents, statusOf, type Filters } from "@/lib/events-api";
-import { EventTable } from "./event-table";
+import { isTyping } from "@/lib/dom";
+import { CUSTOM_RANGE, RANGES, hasActiveFilters, rangeError, type Filters } from "@/lib/events-api";
+import { useEventList, useFacets } from "@/lib/queries";
+import { EventTable, EventTableSkeleton } from "./event-table";
+
+const dateInputClass =
+  "h-9 rounded-md border border-border bg-surface px-2.5 text-sm text-fg transition-colors hover:border-fg-muted focus:border-ring";
 
 export function EventExplorer() {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
 
+  // Filters live in the URL so a filtered view can be bookmarked or pasted to a teammate.
   const filters: Filters = {
     q: params.get("q") ?? "",
     level: params.get("level") ?? "",
     service: params.get("service") ?? "",
     action: params.get("action") ?? "",
     range: params.get("range") ?? "",
+    from: params.get("from") ?? "",
+    to: params.get("to") ?? "",
   };
+  const dateError = rangeError(filters);
 
   const [searchText, setSearchText] = useState(filters.q);
-  const [searchResetKey, setSearchResetKey] = useState(0);
-  const [reloadTick, setReloadTick] = useState(0);
-
+  const [resetKey, setResetKey] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   const debounce = useRef<ReturnType<typeof setTimeout>>(undefined);
 
-  const facetsQuery = useQuery({
-    queryKey: ["event-facets"],
-    queryFn: ({ signal }) => getFacets(signal),
-  });
+  const facets = useFacets().data;
+  const list = useEventList(filters, !dateError);
+  const events = list.data?.pages.flatMap((p) => p.data) ?? [];
 
-  const eventsQuery = useInfiniteQuery({
-    queryKey: ["events", filters, reloadTick],
-    initialPageParam: undefined as string | undefined,
-    queryFn: ({ pageParam, signal }) => listEvents(filters, pageParam, signal),
-    getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined,
-  });
-
-  useEffect(() => {
-    if (statusOf(eventsQuery.error) === 401) {
-      router.replace("/login");
-    }
-  }, [eventsQuery.error, router]);
-
-  const setParam = useCallback(
-    (name: keyof Filters, value: string) => {
+  const setParams = useCallback(
+    (updates: Partial<Record<keyof Filters, string>>) => {
       const next = new URLSearchParams(window.location.search);
-      if (value) next.set(name, value);
-      else next.delete(name);
-
+      for (const [name, value] of Object.entries(updates)) {
+        if (value) next.set(name, value);
+        else next.delete(name);
+      }
       const qs = next.toString();
-      router.replace(qs ? `${pathname}?${qs}` : pathname, {
-        scroll: false,
-      });
+      router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
     },
     [router, pathname],
   );
 
+  // "/" focuses search (unless already typing somewhere)
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
-      const target = e.target as HTMLElement | null;
-      const typing =
-        target &&
-        (target.tagName === "INPUT" ||
-          target.tagName === "TEXTAREA" ||
-          target.tagName === "SELECT" ||
-          target.isContentEditable);
-
-      if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey) {
+      if (e.key === "/" && !isTyping(e.target) && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         searchRef.current?.focus();
       }
     }
-
     window.addEventListener("keydown", onKey);
     return () => {
       window.removeEventListener("keydown", onKey);
@@ -88,24 +71,82 @@ export function EventExplorer() {
   function onSearchChange(value: string) {
     setSearchText(value);
     clearTimeout(debounce.current);
-    debounce.current = setTimeout(() => setParam("q", value.trim()), 300);
+    debounce.current = setTimeout(() => setParams({ q: value.trim() }), 300);
   }
 
   function clearFilters() {
     clearTimeout(debounce.current);
     setSearchText("");
-    setSearchResetKey((key) => key + 1);
+    setResetKey((k) => k + 1);
     router.replace(pathname, { scroll: false });
   }
 
-  const pages = eventsQuery.data?.pages ?? [];
-  const rows = pages.flatMap((page) => page.data);
-  const nextCursor = pages.at(-1)?.nextCursor ?? null;
-  const loading = eventsQuery.isPending;
-  const active = hasActiveFilters(filters);
-  const facets = facetsQuery.data;
+  function onRangeChange(value: string) {
+    // switching away from "custom" drops the custom dates
+    setParams({ range: value, ...(value === CUSTOM_RANGE ? {} : { from: "", to: "" }) });
+  }
 
-  const toOptions = (values: string[] = []) => values.map((value) => ({ value, label: value }));
+  const active = hasActiveFilters(filters);
+  const toOptions = (values: string[] = []) => values.map((v) => ({ value: v, label: v }));
+  const rangeOptions = [
+    ...Object.entries(RANGES).map(([value, r]) => ({ value, label: r.label })),
+    { value: CUSTOM_RANGE, label: "Custom range…" },
+  ];
+
+  let body: React.ReactNode;
+  if (dateError) {
+    body = (
+      <StatePanel
+        tone="error"
+        title="Check the date range"
+        description="Fix the start and end time above to see matching events."
+      />
+    );
+  } else if (list.isPending) {
+    body = <EventTableSkeleton />;
+  } else if (list.isError && events.length === 0) {
+    body = (
+      <StatePanel
+        tone="error"
+        title="Couldn't load events"
+        description="Something went wrong while fetching events. Check your connection and try again."
+        action={
+          <Button variant="secondary" onClick={() => void list.refetch()}>
+            Retry
+          </Button>
+        }
+      />
+    );
+  } else if (events.length === 0) {
+    body = (
+      <StatePanel
+        title={active ? "No events match your filters" : "No events yet"}
+        description={
+          active
+            ? "Try a different search term or remove some filters."
+            : "Events will appear here once your application starts sending them."
+        }
+        action={
+          active ? (
+            <Button variant="secondary" onClick={clearFilters}>
+              Clear filters
+            </Button>
+          ) : undefined
+        }
+      />
+    );
+  } else {
+    body = (
+      <EventTable
+        events={events}
+        scrollKey={params.toString()}
+        hasNextPage={list.hasNextPage}
+        isFetchingNextPage={list.isFetchingNextPage}
+        nextPageFailed={list.isFetchNextPageError}
+        fetchNextPage={() => void list.fetchNextPage()}
+      />
+    );
+  }
 
   return (
     <div className="flex flex-col gap-5">
@@ -116,115 +157,107 @@ export function EventExplorer() {
         </p>
       </div>
 
-      <div key={searchResetKey} className="flex flex-col gap-3 lg:flex-row lg:items-center">
-        <div className="lg:w-80">
-          <SearchInput
-            ref={searchRef}
-            label="Search events"
-            placeholder="Event ID, actor or message"
-            value={searchText}
-            onChange={onSearchChange}
-          />
+      <div key={resetKey} className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="lg:w-80">
+            <SearchInput
+              ref={searchRef}
+              label="Search events"
+              placeholder="Event ID, actor or message"
+              value={searchText}
+              onChange={onSearchChange}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
+            <Select
+              label="Level"
+              placeholder="All levels"
+              value={filters.level}
+              onChange={(e) => setParams({ level: e.target.value })}
+              options={toOptions(facets?.levels ?? ["INFO", "WARN", "ERROR"])}
+            />
+            <Select
+              label="Service"
+              placeholder="All services"
+              value={filters.service}
+              onChange={(e) => setParams({ service: e.target.value })}
+              options={toOptions(facets?.services)}
+            />
+            <Select
+              label="Action"
+              placeholder="All actions"
+              value={filters.action}
+              onChange={(e) => setParams({ action: e.target.value })}
+              options={toOptions(facets?.actions)}
+            />
+            <Select
+              label="Time range"
+              placeholder="All time"
+              value={filters.range}
+              onChange={(e) => onRangeChange(e.target.value)}
+              options={rangeOptions}
+            />
+          </div>
+          {active && (
+            <Button variant="ghost" onClick={clearFilters} className="self-start lg:self-auto">
+              Clear filters
+            </Button>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:flex">
-          <Select
-            label="Level"
-            placeholder="All levels"
-            value={filters.level}
-            onChange={(e) => setParam("level", e.target.value)}
-            options={toOptions(facets?.levels ?? ["INFO", "WARN", "ERROR"])}
-          />
-          <Select
-            label="Service"
-            placeholder="All services"
-            value={filters.service}
-            onChange={(e) => setParam("service", e.target.value)}
-            options={toOptions(facets?.services)}
-          />
-          <Select
-            label="Action"
-            placeholder="All actions"
-            value={filters.action}
-            onChange={(e) => setParam("action", e.target.value)}
-            options={toOptions(facets?.actions)}
-          />
-          <Select
-            label="Time range"
-            placeholder="All time"
-            value={filters.range}
-            onChange={(e) => setParam("range", e.target.value)}
-            options={Object.entries(RANGES).map(([value, range]) => ({
-              value,
-              label: range.label,
-            }))}
-          />
-        </div>
-
-        {active && (
-          <Button variant="ghost" onClick={clearFilters} className="self-start lg:self-auto">
-            Clear filters
-          </Button>
+        {filters.range === CUSTOM_RANGE && (
+          <fieldset className="flex flex-wrap items-start gap-3">
+            <legend className="sr-only">Custom time range</legend>
+            <label className="flex flex-col gap-1 text-xs font-medium text-fg-secondary">
+              From
+              <input
+                type="datetime-local"
+                value={filters.from}
+                onChange={(e) => setParams({ from: e.target.value })}
+                className={dateInputClass}
+                aria-invalid={dateError ? true : undefined}
+                aria-describedby={dateError ? "range-error" : undefined}
+              />
+            </label>
+            <label className="flex flex-col gap-1 text-xs font-medium text-fg-secondary">
+              To
+              <input
+                type="datetime-local"
+                value={filters.to}
+                onChange={(e) => setParams({ to: e.target.value })}
+                className={dateInputClass}
+                aria-invalid={dateError ? true : undefined}
+                aria-describedby={dateError ? "range-error" : undefined}
+              />
+            </label>
+            {dateError && (
+              <p id="range-error" role="alert" className="self-end pb-2 text-xs text-error">
+                {dateError}
+              </p>
+            )}
+          </fieldset>
         )}
       </div>
 
       <section aria-label="Event results" className="overflow-hidden rounded-lg border border-border bg-surface">
-        {eventsQuery.isError && !eventsQuery.data ? (
-          <StatePanel
-            tone="error"
-            title="Couldn't load events"
-            description="Something went wrong while fetching events. Check your connection and try again."
-            action={
-              <Button variant="secondary" onClick={() => setReloadTick((tick) => tick + 1)}>
-                Retry
-              </Button>
-            }
-          />
-        ) : !loading && rows.length === 0 && eventsQuery.data ? (
-          <StatePanel
-            title={active ? "No events match your filters" : "No events yet"}
-            description={
-              active
-                ? "Try a different search term or remove some filters."
-                : "Events will appear here once your application starts sending them."
-            }
-            action={
-              active ? (
-                <Button variant="secondary" onClick={clearFilters}>
-                  Clear filters
-                </Button>
-              ) : undefined
-            }
-          />
-        ) : (
-          <EventTable events={rows} loading={loading} />
-        )}
+        {body}
 
-        {!loading && eventsQuery.data && rows.length > 0 && (
+        {!dateError && events.length > 0 && (
           <div className="flex items-center justify-between gap-3 border-t border-border px-3 py-2.5 text-xs text-fg-secondary">
-            <span aria-live="polite">
-              Showing {rows.length} event{rows.length === 1 ? "" : "s"}
-              {nextCursor ? "" : " · end of results"}
+            <span role="status">
+              Showing {events.length} event{events.length === 1 ? "" : "s"}
+              {list.hasNextPage ? (list.isFetchingNextPage ? " · loading more…" : "") : " · end of results"}
             </span>
-
-            <div className="flex items-center gap-3">
-              {eventsQuery.isFetchNextPageError && (
+            {list.isFetchNextPageError && (
+              <div className="flex items-center gap-3">
                 <span role="alert" className="text-error">
                   Couldn&apos;t load more.
                 </span>
-              )}
-
-              {nextCursor && (
-                <Button
-                  variant="secondary"
-                  onClick={() => void eventsQuery.fetchNextPage()}
-                  loading={eventsQuery.isFetchingNextPage}
-                  loadingText="Loading…"
-                >
-                  Load more
+                <Button variant="secondary" onClick={() => void list.fetchNextPage()}>
+                  Retry
                 </Button>
-              )}
-            </div>
+              </div>
+            )}
           </div>
         )}
       </section>

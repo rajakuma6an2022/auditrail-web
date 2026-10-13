@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { renderWithClient } from "./utils";
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ApiError } from "@/lib/api";
 
@@ -30,7 +31,7 @@ beforeEach(() => {
 describe("EventDetail", () => {
   it("shows the event, severity text and metadata", async () => {
     getEvent.mockResolvedValue(event);
-    render(<EventDetail id="evt_9f81a2" />);
+    renderWithClient(<EventDetail id="evt_9f81a2" />);
     expect(await screen.findByText(event.message)).toBeInTheDocument();
     expect(screen.getAllByText("ERROR").length).toBeGreaterThan(0);
     expect(screen.getByText("user_4821")).toBeInTheDocument();
@@ -40,25 +41,25 @@ describe("EventDetail", () => {
 
   it("shows the loading state first", () => {
     getEvent.mockReturnValue(new Promise(() => {}));
-    render(<EventDetail id="evt_1" />);
+    renderWithClient(<EventDetail id="evt_1" />);
     expect(screen.getByRole("status", { name: "Loading event" })).toBeInTheDocument();
   });
 
   it("shows not found on 404", async () => {
     getEvent.mockRejectedValue(new ApiError(404, "EVENT_NOT_FOUND", "nope"));
-    render(<EventDetail id="evt_x" />);
+    renderWithClient(<EventDetail id="evt_x" />);
     expect(await screen.findByText("Event not found")).toBeInTheDocument();
   });
 
   it("shows unauthorized on 401", async () => {
     getEvent.mockRejectedValue(new ApiError(401, "UNAUTHENTICATED", "no"));
-    render(<EventDetail id="evt_x" />);
+    renderWithClient(<EventDetail id="evt_x" />);
     expect(await screen.findByText("You can't view this event")).toBeInTheDocument();
   });
 
   it("shows an error with retry on 500", async () => {
     getEvent.mockRejectedValue(new ApiError(500, "INTERNAL_ERROR", "boom"));
-    render(<EventDetail id="evt_x" />);
+    renderWithClient(<EventDetail id="evt_x" />);
     expect(await screen.findByRole("button", { name: "Retry" })).toBeInTheDocument();
   });
 });

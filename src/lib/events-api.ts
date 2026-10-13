@@ -15,9 +15,18 @@ export type AuditEvent = {
 
 export type Facets = { levels: Level[]; services: string[]; actions: string[] };
 
-export type Filters = { q: string; level: string; service: string; action: string; range: string };
+// from/to are "YYYY-MM-DDTHH:mm" values (browser-local time) and only apply when range === "custom".
+export type Filters = {
+  q: string;
+  level: string;
+  service: string;
+  action: string;
+  range: string;
+  from: string;
+  to: string;
+};
 
-export const EMPTY_FILTERS: Filters = { q: "", level: "", service: "", action: "", range: "" };
+export const EMPTY_FILTERS: Filters = { q: "", level: "", service: "", action: "", range: "", from: "", to: "" };
 
 export const RANGES: Record<string, { label: string; ms: number }> = {
   "1h": { label: "Last hour", ms: 60 * 60 * 1000 },
@@ -26,8 +35,21 @@ export const RANGES: Record<string, { label: string; ms: number }> = {
   "30d": { label: "Last 30 days", ms: 30 * 24 * 60 * 60 * 1000 },
 };
 
+export const CUSTOM_RANGE = "custom";
+
 export function hasActiveFilters(f: Filters) {
   return Object.values(f).some(Boolean);
+}
+
+const validLocal = (value: string) => !!value && !Number.isNaN(Date.parse(value));
+
+// null when the custom range is fine, otherwise a message to show the user.
+export function rangeError(f: Filters): string | null {
+  if (f.range !== CUSTOM_RANGE) return null;
+  if (validLocal(f.from) && validLocal(f.to) && Date.parse(f.from) > Date.parse(f.to)) {
+    return "The start must be before the end.";
+  }
+  return null;
 }
 
 // Pure function: turns UI filters into the API query string.
@@ -37,8 +59,13 @@ export function buildListQuery(f: Filters, cursor?: string, now: number = Date.n
   if (f.level) p.set("level", f.level);
   if (f.service) p.set("service", f.service);
   if (f.action) p.set("action", f.action);
-  const range = RANGES[f.range];
-  if (range) p.set("from", new Date(now - range.ms).toISOString());
+  const preset = RANGES[f.range];
+  if (preset) {
+    p.set("from", new Date(now - preset.ms).toISOString());
+  } else if (f.range === CUSTOM_RANGE) {
+    if (validLocal(f.from)) p.set("from", new Date(f.from).toISOString());
+    if (validLocal(f.to)) p.set("to", new Date(f.to).toISOString());
+  }
   if (cursor) p.set("cursor", cursor);
   p.set("limit", "25");
   return p.toString();

@@ -21,6 +21,8 @@
   },
   "dependencies": {
     "@tanstack/react-query": "^5.104.2",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.17",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",

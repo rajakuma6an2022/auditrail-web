@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Breadcrumb } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -8,16 +7,10 @@ import { CopyButton } from "@/components/ui/copy-button";
 import { SeverityBadge } from "@/components/ui/severity-badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatePanel } from "@/components/ui/state-panel";
-import { getEvent, isAborted, statusOf, type AuditEvent } from "@/lib/events-api";
+import { statusOf } from "@/lib/events-api";
+import { useEvent } from "@/lib/queries";
 import { formatTime } from "@/lib/format";
 import { BackLink } from "./back-link";
-
-type State =
-  | { status: "loading" }
-  | { status: "found"; event: AuditEvent }
-  | { status: "not-found" }
-  | { status: "unauthorized" }
-  | { status: "error" };
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -29,30 +22,18 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 export function EventDetail({ id }: { id: string }) {
-  const [result, setResult] = useState<{ id: string; tick: number; state: State } | null>(null);
-  const [tick, setTick] = useState(0);
-
-  useEffect(() => {
-    const ctrl = new AbortController();
-    const done = (state: State) => setResult({ id, tick, state });
-    getEvent(id, ctrl.signal)
-      .then((event) => done({ status: "found", event }))
-      .catch((e: unknown) => {
-        if (isAborted(e)) return;
-        const status = statusOf(e);
-        done(
-          status === 404
-            ? { status: "not-found" }
-            : status === 401 || status === 403
-              ? { status: "unauthorized" }
-              : { status: "error" },
-        );
-      });
-    return () => ctrl.abort();
-  }, [id, tick]);
-
-  const state: State = result && result.id === id && result.tick === tick ? result.state : { status: "loading" };
-  const event = state.status === "found" ? state.event : null;
+  const query = useEvent(id);
+  const status = query.isError ? statusOf(query.error) : undefined;
+  const state: { status: "loading" | "found" | "not-found" | "unauthorized" | "error" } = query.isPending
+    ? { status: "loading" }
+    : query.isSuccess
+      ? { status: "found" }
+      : status === 404
+        ? { status: "not-found" }
+        : status === 401 || status === 403
+          ? { status: "unauthorized" }
+          : { status: "error" };
+  const event = query.data ?? null;
 
   return (
     <div className="mx-auto flex max-w-225 flex-col gap-6">
@@ -126,7 +107,7 @@ export function EventDetail({ id }: { id: string }) {
             title="Couldn't load this event"
             description="Something went wrong while fetching the event. Try again."
             action={
-              <Button variant="secondary" onClick={() => setTick((t) => t + 1)}>
+              <Button variant="secondary" onClick={() => void query.refetch()}>
                 Retry
               </Button>
             }
@@ -141,7 +122,7 @@ export function EventDetail({ id }: { id: string }) {
               <h2 id="info-heading" className="text-base font-semibold">
                 Event information
               </h2>
-              <CopyButton value={event.id} label="Copy Event ID" />
+              <CopyButton value={event.id} label="Copy Event ID" successMessage="Event ID copied" />
             </div>
             <dl className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
               <Field label="Event ID">

@@ -1,9 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
+import { renderWithClient } from "./utils";
 import userEvent from "@testing-library/user-event";
 import axe from "axe-core";
 import { describe, expect, it, vi } from "vitest";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { ReactNode } from "react";
 
 const replace = vi.fn();
 const router = { replace, push: vi.fn(), back: vi.fn() }; // stable identity, like the real Next router
@@ -62,20 +61,6 @@ const event = {
   metadata: { a: 1 },
 };
 
-function renderExplorer() {
-  const queryClient = new QueryClient({
-    defaultOptions: {
-      queries: { retry: false },
-    },
-  });
-
-  return render(<EventExplorer />, {
-    wrapper: ({ children }: { children: ReactNode }) => (
-      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
-    ),
-  });
-}
-
 describe("axe (jsdom)", () => {
   it("login: default, invalid and sent states", async () => {
     const user = userEvent.setup();
@@ -99,7 +84,7 @@ describe("axe (jsdom)", () => {
       actions: ["payment_failed"],
     });
     listEvents.mockResolvedValue({ data: [event], nextCursor: "c" });
-    const { container } = renderExplorer();
+    const { container } = renderWithClient(<EventExplorer />);
     await screen.findByText("Payment failed");
     expect(await violations(container)).toEqual([]);
     for (const name of ["Search events", "Level", "Service", "Action", "Time range"]) {
@@ -111,20 +96,20 @@ describe("axe (jsdom)", () => {
   it("explorer: error state", async () => {
     getFacets.mockResolvedValue({ levels: [], services: [], actions: [] });
     listEvents.mockRejectedValue(new Error("down"));
-    const { container } = renderExplorer();
+    const { container } = renderWithClient(<EventExplorer />);
     await screen.findByRole("button", { name: "Retry" });
     expect(await violations(container)).toEqual([]);
   });
 
   it("detail: found and not-found states", async () => {
     getEvent.mockResolvedValue(event);
-    const found = render(<EventDetail id="evt_1" />);
+    const found = renderWithClient(<EventDetail id="evt_1" />);
     await screen.findByText("Event information");
     expect(await violations(found.container)).toEqual([]);
     found.unmount();
 
     getEvent.mockRejectedValue(new ApiError(404, "EVENT_NOT_FOUND", "x"));
-    const missing = render(<EventDetail id="evt_x" />);
+    const missing = renderWithClient(<EventDetail id="evt_x" />);
     await waitFor(() => expect(screen.getByText("Event not found")).toBeInTheDocument());
     expect(await violations(missing.container)).toEqual([]);
   });
