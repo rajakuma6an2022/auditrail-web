@@ -23,3 +23,12 @@ export function fetchMe() {
 export function logout() {
   return api<void>("/api/v1/auth/logout", { method: "POST" });
 }
+
+export function getAuthConfig() {
+  return api<{ demoEnabled: boolean }>("/api/v1/auth/config");
+}
+
+// Public read-only demo session (only exists when the API has DEMO_LOGIN_EMAIL set).
+export function demoLogin() {
+  return api<{ user: User }>("/api/v1/auth/demo", { method: "POST" });
+}

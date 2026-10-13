@@ -52,8 +52,20 @@ test("unknown routes show the 404 screen", async ({ page }) => {
 
 test("theme toggle switches to dark and persists after reload", async ({ page }) => {
   await page.goto("/login");
-  await page.getByRole("button", { name: "Switch to dark mode" }).click();
+  await page.getByRole("button", { name: "Use dark theme" }).click();
   await expect(page.locator("html")).toHaveClass(/dark/);
   await page.reload();
   await expect(page.locator("html")).toHaveClass(/dark/);
+});
+
+test("the demo button signs a reviewer in without email (when the API enables it)", async ({ page, request }) => {
+  const config = await request.get("/api/v1/auth/config");
+  test.skip(!(await config.json()).demoEnabled, "demo login is not enabled on this API");
+
+  await page.goto("/login");
+  await page.getByRole("button", { name: "Try the demo" }).click();
+  await expect(page).toHaveURL(/\/events$/);
+  await expect(page.getByRole("link", { name: "evt_9f81a2" })).toBeVisible();
+  await page.getByRole("button", { name: "Account menu" }).click();
+  await expect(page.getByText("demo@payflow.test").first()).toBeVisible();
 });

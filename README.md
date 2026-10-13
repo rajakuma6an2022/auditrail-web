@@ -3,6 +3,11 @@
 Next.js 16 + Tailwind v4 frontend for **Auditrail**: Login → Event Explorer → Event Detail.
 API: [auditrail-api](https://github.com/rajakuma6an2022/auditrail-api).
 
+## Try it (demo account)
+
+The login screen has a **Try the demo** button: a read-only session on a demo account, no email needed. The data is synthetic.
+The button only appears when the API is configured for it. Normal sign-in is by magic link to an allow-listed email.
+
 ## Highlights
 
 - **Virtualized infinite scroll** (TanStack Query `useInfiniteQuery` + Virtual + Table): only a small window of rows is in
@@ -15,8 +20,8 @@ API: [auditrail-api](https://github.com/rajakuma6an2022/auditrail-api).
 
 ## Quality
 
-- `npm test`: 94 unit/component tests (Vitest, Testing Library, axe-core)
-- `npm run e2e`: 45 Playwright tests including axe WCAG A/AA checks in light and dark mode
+- `npm test`: 100 unit/component tests (Vitest, Testing Library, axe-core)
+- `npm run e2e`: 46 Playwright tests including axe WCAG A/AA checks in light and dark mode
 - GitHub Actions runs format check, typecheck, lint, tests, build and the E2E suite against a real API and PostgreSQL
 
 ## Run locally

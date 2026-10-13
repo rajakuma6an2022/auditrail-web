@@ -22,3 +22,8 @@ if (typeof HTMLDialogElement !== "undefined" && !HTMLDialogElement.prototype.sho
     this.dispatchEvent(new Event("close"));
   };
 }
+
+// jsdom's element.scrollTo() is a no-op; a real browser moves the scroll position, which scroll restoration relies on.
+HTMLElement.prototype.scrollTo = function scrollTo(this: HTMLElement, a?: ScrollToOptions | number, b?: number) {
+  this.scrollTop = typeof a === "object" ? (a.top ?? 0) : (b ?? 0);
+} as HTMLElement["scrollTo"];
