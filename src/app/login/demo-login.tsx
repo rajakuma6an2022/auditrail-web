@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { demoLogin, getAuthConfig } from "@/lib/auth-api";
 
-// Shown only when the API has the demo enabled. Lets a reviewer explore without an email inbox.
 export function DemoLogin() {
   const router = useRouter();
   const [enabled, setEnabled] = useState(false);
