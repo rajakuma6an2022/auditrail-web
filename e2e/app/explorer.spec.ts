@@ -122,30 +122,26 @@ test('pressing "?" opens the keyboard shortcuts dialog, and Escape closes it', a
   await expect(dialog).toBeHidden();
 });
 
-// test("Back from an event restores the list scroll position", async ({ page }) => {
-//   const scroller = page.getByRole("region", { name: "Events table" });
+test("Back from an event restores the list scroll position", async ({ page }) => {
+  const scroller = page.getByRole("region", { name: "Events table" });
 
-//   // 1) Load every page so scrollHeight is large (same as infinite-scroll test)
-//   await expect(async () => {
-//     await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
-//     await expect(footer(page)).toContainText("end of results", { timeout: 1000 });
-//   }).toPass({ timeout: 20_000 });
+  // Load every page first, so the list is tall enough to be scrolled deep.
+  await expect(async () => {
+    await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    await expect(footer(page)).toContainText("end of results", { timeout: 1000 });
+  }).toPass({ timeout: 20_000 });
 
-//   // 2) Jump to a deep offset and persist it
-//   await scroller.evaluate((el) => {
-//     el.scrollTop = 1200;
-//     el.dispatchEvent(new Event("scroll", { bubbles: true }));
-//   });
-//   await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(1000);
+  await scroller.evaluate((el) => el.scrollTo(0, 1200));
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop)).toBeGreaterThan(1000);
 
-//   // 3) Native click — no Playwright scroll-into-view
-//   await rows(page).first().getByRole("link").evaluate((el) => (el as HTMLAnchorElement).click());
-//   await expect(page.getByRole("heading", { name: "Event Detail" })).toBeVisible();
-//   await page.getByRole("link", { name: "Back to Events" }).click();
+  // Native click: Playwright's own scroll-into-view would move the list before we leave it.
+  await rows(page)
+    .nth(12)
+    .getByRole("link")
+    .evaluate((el) => (el as HTMLAnchorElement).click());
+  await expect(page.getByRole("heading", { name: "Event Detail" })).toBeVisible();
+  await page.getByRole("link", { name: "Back to Events" }).click();
 
-//   // 4) Cache has all pages → restore can reach 1200
-//   await expect(scroller).toBeVisible();
-//   await expect
-//     .poll(() => scroller.evaluate((el) => el.scrollTop), { timeout: 10_000 })
-//     .toBeGreaterThan(1000);
-// });
+  await expect(scroller).toBeVisible();
+  await expect.poll(() => scroller.evaluate((el) => el.scrollTop), { timeout: 10_000 }).toBeGreaterThan(1000);
+});

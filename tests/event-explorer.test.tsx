@@ -155,4 +155,14 @@ describe("EventExplorer", () => {
     fireEvent.scroll(region, { target: { scrollTop: 120 } });
     expect(readScroll("")).toBe(120);
   });
+
+  it("renders the rows around a deep saved offset on the first render (virtualizer initialOffset)", async () => {
+    saveScroll("", 2000);
+    listEvents.mockResolvedValue({ data: rows(1, 500), nextCursor: null });
+    renderWithClient(<EventExplorer />);
+    const region = await screen.findByRole("region", { name: "Events table" });
+    const firstRendered = Number(document.querySelector("tbody tr[aria-rowindex]")!.getAttribute("aria-rowindex"));
+    expect(firstRendered).toBeGreaterThan(20); // not starting from the top
+    expect(region.scrollTop).toBe(2000);
+  });
 });

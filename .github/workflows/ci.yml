@@ -72,6 +72,7 @@ jobs:
           JWT_SECRET: e2e-secret-e2e-secret-e2e-secret-123456
           APP_URL: http://localhost:3000
           CORS_ORIGIN: http://localhost:3000
+          DEMO_LOGIN_EMAIL: demo@payflow.test
         run: |
           set -e
 

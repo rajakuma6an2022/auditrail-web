@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -46,7 +46,6 @@ export function EventTable({
 }: Props) {
   const router = useRouter();
   const scrollRef = useRef<HTMLDivElement>(null);
-  const restoredRef = useRef(false);
 
   // TanStack Table/Virtual return unmemoizable functions; harmless here (React Compiler is not enabled).
   // eslint-disable-next-line react-hooks/incompatible-library
@@ -58,41 +57,14 @@ export function EventTable({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: 10,
+    // Restores the scroll position (e.g. Back from an event): the virtualizer renders the rows around this offset
+    // on its FIRST render and scrolls the container there, so the content is tall enough before scrolling.
+    initialOffset: () => readScroll(scrollKey),
   });
   const items = virtualizer.getVirtualItems();
   const paddingTop = items.length > 0 ? items[0]!.start : 0;
   const paddingBottom = items.length > 0 ? virtualizer.getTotalSize() - items[items.length - 1]!.end : 0;
   const lastRendered = items.length > 0 ? items[items.length - 1]!.index : -1;
-
-  // Save scroll before any click navigates away (link or row).
-  function persistScroll() {
-    if (scrollRef.current) saveScroll(scrollKey, scrollRef.current.scrollTop);
-  }
-
-  // Reset when filters change
-  useLayoutEffect(() => {
-    restoredRef.current = false;
-  }, [scrollKey]);
-
-  // Restore once when rows exist (NO fetchNextPage here)
-  useLayoutEffect(() => {
-    if (restoredRef.current || rows.length === 0) return;
-    const saved = readScroll(scrollKey);
-    if (saved <= 0 || !scrollRef.current) return;
-    scrollRef.current.scrollTop = saved;
-    requestAnimationFrame(() => {
-      if (scrollRef.current) scrollRef.current.scrollTop = saved;
-    });
-    restoredRef.current = true;
-  }, [scrollKey, rows.length]);
-
-  // Save on leave (link / Back)
-  useEffect(() => {
-    const el = scrollRef.current;
-    return () => {
-      if (el) saveScroll(scrollKey, el.scrollTop);
-    };
-  }, [scrollKey]);
 
   useEffect(() => {
     if (hasNextPage && !isFetchingNextPage && !nextPageFailed && lastRendered >= rows.length - PREFETCH_DISTANCE) {
@@ -107,7 +79,6 @@ export function EventTable({
       aria-label="Events table"
       tabIndex={0}
       onScroll={(e) => saveScroll(scrollKey, e.currentTarget.scrollTop)}
-      onPointerDown={persistScroll}
       className="max-h-[70vh] overflow-auto"
     >
       <table
@@ -142,10 +113,7 @@ export function EventTable({
               <tr
                 key={row.id}
                 aria-rowindex={item.index + 2}
-                onClick={() => {
-                  persistScroll();
-                  router.push(`/events/${encodeURIComponent(row.original.id)}`);
-                }}
+                onClick={() => router.push(`/events/${encodeURIComponent(row.original.id)}`)}
                 className="h-[41px] cursor-pointer transition-colors hover:bg-surface-muted"
               >
                 {row.getVisibleCells().map((cell) => (

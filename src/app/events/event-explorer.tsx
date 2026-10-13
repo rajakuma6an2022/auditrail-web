@@ -138,6 +138,7 @@ export function EventExplorer() {
   } else {
     body = (
       <EventTable
+        key={params.toString()}
         events={events}
         scrollKey={params.toString()}
         hasNextPage={list.hasNextPage}
