@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { EMPTY_FILTERS, buildListQuery, hasActiveFilters } from "@/lib/events-api";
+import { EMPTY_FILTERS, buildListQuery, hasActiveFilters, rangeError } from "@/lib/events-api";
 
 describe("buildListQuery", () => {
   it("only sends limit when no filters are set", () => {
@@ -9,7 +9,7 @@ describe("buildListQuery", () => {
   it("maps filters, trims search and adds the cursor", () => {
     const qs = new URLSearchParams(
       buildListQuery(
-        { q: "  user_4821 ", level: "ERROR", service: "payments", action: "payment_failed", range: "" },
+        { ...EMPTY_FILTERS, q: "  user_4821 ", level: "ERROR", service: "payments", action: "payment_failed" },
         "abc",
       ),
     );
@@ -36,5 +36,29 @@ describe("hasActiveFilters", () => {
   it("is false for empty filters and true otherwise", () => {
     expect(hasActiveFilters(EMPTY_FILTERS)).toBe(false);
     expect(hasActiveFilters({ ...EMPTY_FILTERS, level: "WARN" })).toBe(true);
+  });
+});
+
+describe("custom range", () => {
+  it("converts local datetimes to ISO from/to", () => {
+    const f = { ...EMPTY_FILTERS, range: "custom", from: "2026-10-01T09:30", to: "2026-10-02T18:00" };
+    const qs = new URLSearchParams(buildListQuery(f));
+    expect(qs.get("from")).toBe(new Date("2026-10-01T09:30").toISOString());
+    expect(qs.get("to")).toBe(new Date("2026-10-02T18:00").toISOString());
+  });
+
+  it("ignores from/to unless range is custom, and ignores invalid dates", () => {
+    expect(new URLSearchParams(buildListQuery({ ...EMPTY_FILTERS, from: "2026-10-01T09:30" })).has("from")).toBe(false);
+    const bad = new URLSearchParams(buildListQuery({ ...EMPTY_FILTERS, range: "custom", from: "garbage", to: "" }));
+    expect(bad.has("from")).toBe(false);
+    expect(bad.has("to")).toBe(false);
+  });
+
+  it("rangeError flags a start after the end only", () => {
+    const f = { ...EMPTY_FILTERS, range: "custom" };
+    expect(rangeError({ ...f, from: "2026-10-02T00:00", to: "2026-10-01T00:00" })).toMatch(/before the end/);
+    expect(rangeError({ ...f, from: "2026-10-01T00:00", to: "2026-10-02T00:00" })).toBeNull();
+    expect(rangeError({ ...f, from: "2026-10-01T00:00", to: "" })).toBeNull();
+    expect(rangeError({ ...EMPTY_FILTERS, from: "2026-10-02T00:00", to: "2026-10-01T00:00" })).toBeNull();
   });
 });

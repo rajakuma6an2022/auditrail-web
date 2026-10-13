@@ -30,5 +30,21 @@ for (const scheme of ["light", "dark"] as const) {
       await expect(page.getByText("Event not found")).toBeVisible();
       await expectNoA11yViolations(page);
     });
+
+    test("account menu (open) has no violations", async ({ page }) => {
+      await page.goto("/events");
+      await expect(page.getByRole("link", { name: "evt_9f81a2" })).toBeVisible();
+      await page.getByRole("button", { name: "Account menu" }).click();
+      await expect(page.getByRole("button", { name: "Sign out" })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
+
+    test("keyboard shortcuts dialog (open) has no violations", async ({ page }) => {
+      await page.goto("/events");
+      await expect(page.getByRole("link", { name: "evt_9f81a2" })).toBeVisible();
+      await page.locator("body").press("?");
+      await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+      await expectNoA11yViolations(page);
+    });
   });
 }

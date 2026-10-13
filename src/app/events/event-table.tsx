@@ -1,81 +1,141 @@
 "use client";
 
-import Link from "next/link";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { SeverityBadge } from "@/components/ui/severity-badge";
+import { flexRender, getCoreRowModel, useReactTable } from "@tanstack/react-table";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Skeleton } from "@/components/ui/skeleton";
 import type { AuditEvent } from "@/lib/events-api";
-import { formatTime } from "@/lib/format";
+import { readScroll, saveScroll } from "@/lib/scroll-memory";
+import { CELL_CLASS, columns } from "./columns";
 
-const COLUMNS = ["Event ID", "Time", "Level", "Action", "Service", "Actor", "Message"];
+const ROW_HEIGHT = 41; // fixed row height (no wrapping) is what makes virtualization cheap and exact
+const PREFETCH_DISTANCE = 8; // start loading the next page when this close to the last loaded row
 
 export function EventTableSkeleton() {
   return (
-    <tbody aria-hidden="true">
+    <div role="status" aria-label="Loading events" className="overflow-hidden">
+      <div className="h-[41px] border-b border-border bg-surface-muted" />
       {Array.from({ length: 8 }, (_, i) => (
-        <tr key={i} className="border-b border-border last:border-0">
-          {COLUMNS.map((c) => (
-            <td key={c} className="px-3 py-3">
-              <Skeleton className="h-4 w-full max-w-32" />
-            </td>
+        <div key={i} className="flex h-[41px] items-center gap-6 border-b border-border px-3 last:border-0">
+          {columns.map((c) => (
+            <Skeleton key={c.id} className="h-4 w-full max-w-32" />
           ))}
-        </tr>
+        </div>
       ))}
-    </tbody>
+    </div>
   );
 }
 
-export function EventTable({ events, loading }: { events: AuditEvent[]; loading: boolean }) {
+type Props = {
+  events: AuditEvent[];
+  scrollKey: string;
+  hasNextPage: boolean;
+  isFetchingNextPage: boolean;
+  nextPageFailed: boolean;
+  fetchNextPage: () => void;
+};
+
+export function EventTable({
+  events,
+  scrollKey,
+  hasNextPage,
+  isFetchingNextPage,
+  nextPageFailed,
+  fetchNextPage,
+}: Props) {
   const router = useRouter();
+  const scrollRef = useRef<HTMLDivElement>(null);
+
+  // TanStack Table/Virtual return unmemoizable functions; harmless here (React Compiler is not enabled).
+  // eslint-disable-next-line react-hooks/incompatible-library
+  const table = useReactTable({ data: events, columns, getCoreRowModel: getCoreRowModel(), getRowId: (e) => e.id });
+  const rows = table.getRowModel().rows;
+
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => ROW_HEIGHT,
+    overscan: 10,
+  });
+  const items = virtualizer.getVirtualItems();
+  const paddingTop = items.length > 0 ? items[0]!.start : 0;
+  const paddingBottom = items.length > 0 ? virtualizer.getTotalSize() - items[items.length - 1]!.end : 0;
+  const lastRendered = items.length > 0 ? items[items.length - 1]!.index : -1;
+
+  // Restore the scroll offset when coming back to this filter set (e.g. "Back" from an event).
+  useLayoutEffect(() => {
+    const saved = readScroll(scrollKey);
+    if (saved > 0 && scrollRef.current) scrollRef.current.scrollTop = saved;
+    // only on mount: later scrolling is the user's
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Auto infinite scroll: fetch the next page as the user nears the end of what is loaded.
+  useEffect(() => {
+    if (hasNextPage && !isFetchingNextPage && !nextPageFailed && lastRendered >= rows.length - PREFETCH_DISTANCE) {
+      fetchNextPage();
+    }
+  }, [lastRendered, rows.length, hasNextPage, isFetchingNextPage, nextPageFailed, fetchNextPage]);
 
   return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-225 border-collapse text-left text-sm" aria-busy={loading}>
+    <div
+      ref={scrollRef}
+      role="region"
+      aria-label="Events table"
+      tabIndex={0}
+      onScroll={(e) => saveScroll(scrollKey, e.currentTarget.scrollTop)}
+      className="max-h-[70vh] overflow-auto"
+    >
+      <table
+        className="w-full min-w-225 border-separate border-spacing-0 text-left text-sm"
+        aria-rowcount={hasNextPage ? -1 : rows.length + 1}
+      >
         <caption className="sr-only">Audit events, newest first</caption>
-        <thead>
-          <tr className="border-b border-border bg-surface-muted text-xs font-medium text-fg-secondary">
-            {COLUMNS.map((c) => (
-              <th key={c} scope="col" className="px-3 py-2.5 font-medium">
-                {c}
-              </th>
-            ))}
-          </tr>
+        <thead className="sticky top-0 z-10">
+          {table.getHeaderGroups().map((group) => (
+            <tr key={group.id} aria-rowindex={1}>
+              {group.headers.map((h) => (
+                <th
+                  key={h.id}
+                  scope="col"
+                  className="h-[41px] border-b border-border bg-surface-muted px-3 text-xs font-medium text-fg-secondary"
+                >
+                  {flexRender(h.column.columnDef.header, h.getContext())}
+                </th>
+              ))}
+            </tr>
+          ))}
         </thead>
-        {loading ? (
-          <EventTableSkeleton />
-        ) : (
-          <tbody>
-            {events.map((e) => (
+        <tbody>
+          {paddingTop > 0 && (
+            <tr aria-hidden="true" style={{ height: paddingTop }}>
+              <td colSpan={columns.length} className="p-0" />
+            </tr>
+          )}
+          {items.map((item) => {
+            const row = rows[item.index]!;
+            return (
               <tr
-                key={e.id}
-                onClick={() => router.push(`/events/${encodeURIComponent(e.id)}`)}
-                className="cursor-pointer border-b border-border transition-colors last:border-0 hover:bg-surface-muted"
+                key={row.id}
+                aria-rowindex={item.index + 2}
+                onClick={() => router.push(`/events/${encodeURIComponent(row.original.id)}`)}
+                className="h-[41px] cursor-pointer transition-colors hover:bg-surface-muted"
               >
-                <td className="px-3 py-2.5">
-                  <Link
-                    href={`/events/${encodeURIComponent(e.id)}`}
-                    onClick={(ev) => ev.stopPropagation()}
-                    className="rounded-sm font-mono text-xs text-accent hover:underline"
-                  >
-                    {e.id}
-                  </Link>
-                </td>
-                <td className="whitespace-nowrap px-3 py-2.5 text-fg-secondary">
-                  <time dateTime={e.createdAt}>{formatTime(e.createdAt)}</time>
-                </td>
-                <td className="px-3 py-2.5">
-                  <SeverityBadge level={e.level} />
-                </td>
-                <td className="px-3 py-2.5 font-mono text-xs">{e.action}</td>
-                <td className="px-3 py-2.5 text-fg-secondary">{e.service}</td>
-                <td className="px-3 py-2.5 font-mono text-xs text-fg-secondary">{e.actorId}</td>
-                <td className="max-w-xs truncate px-3 py-2.5 text-fg-secondary" title={e.message}>
-                  {e.message}
-                </td>
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} className={`border-b border-border ${CELL_CLASS[cell.column.id] ?? "px-3"}`}>
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
               </tr>
-            ))}
-          </tbody>
-        )}
+            );
+          })}
+          {paddingBottom > 0 && (
+            <tr aria-hidden="true" style={{ height: paddingBottom }}>
+              <td colSpan={columns.length} className="p-0" />
+            </tr>
+          )}
+        </tbody>
       </table>
     </div>
   );

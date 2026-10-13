@@ -17,13 +17,7 @@ test("shows validation errors for empty and invalid email", async ({ page }) => 
   await expect(page.getByText("Enter a valid email address.")).toBeVisible();
 });
 
-// test("requesting a link shows the confirmation state", async ({ page }) => {
-//   await page.goto("/login");
-//   await page.getByLabel("Email address").fill(E2E_EMAIL);
-//   await page.getByRole("button", { name: "Send magic link" }).click();
-//   await expect(page.getByRole("heading", { name: "Check your email" })).toBeVisible();
-// });
-
+// Uses a different user than the seeded sign-in tokens: requesting a link invalidates that user's older links.
 test("requesting a link shows the confirmation state", async ({ page }) => {
   await page.goto("/login");
   await page.getByLabel("Email address").fill("other@acme.test");
@@ -32,14 +26,6 @@ test("requesting a link shows the confirmation state", async ({ page }) => {
 });
 
 test("a valid magic link signs the user in", async ({ page }, testInfo) => {
-  page.on("response", async (response) => {
-    if (response.url().includes("/api/v1/auth/verify")) {
-      console.log("Verify status:", response.status());
-      console.log("Verify URL:", response.url());
-      console.log("Verify body:", await response.text().catch(() => ""));
-    }
-  });
-
   await page.goto(`/auth/verify?token=${tokenFor(4 + testInfo.retry)}`);
   await expect(page).toHaveURL(/\/events$/);
   await expect(page.getByRole("heading", { name: "Events", exact: true })).toBeVisible();
