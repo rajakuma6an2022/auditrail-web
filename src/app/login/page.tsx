@@ -12,7 +12,7 @@ export default function LoginPage() {
       <main className="flex flex-1 items-start justify-center px-4 pb-16 pt-12 sm:items-center sm:pt-0">
         <div className="w-full max-w-100 rounded-lg border border-border bg-surface p-6 sm:p-8">
           <LoginForm />
-          {/* <DemoLogin /> */}
+          <DemoLogin />
         </div>
       </main>
     </div>
