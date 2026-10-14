@@ -21,6 +21,8 @@ API: [auditrail-api](https://github.com/rajakuma6an2022/auditrail-api).
 | Lighthouse, desktop (3 runs)                       | Performance 100, Accessibility 100, Best Practices 100, SEO 100            |
 | Lighthouse, mobile (3 runs)                        | Performance 94, other categories 100 (LCP 2.4 s, TBT 210 to 230 ms, CLS 0) |
 
+Lighthouse : https://kommodo.ai/i/BOqz3bmrga0MWZfyfYav , https://kommodo.ai/i/7Z7XzBpdrjOcrvCj682D
+
 Accessibility details: severity is never conveyed by colour alone, WCAG AA text contrast is guarded by a unit test, and the filter controls, table and dialogs are keyboard operable.
 Lighthouse scores are lab results for the tested build and conditions.
 
